@@ -1,3 +1,4 @@
+from typing import Dict
 import numpy as np
 from .base_agent import PhysicsAgent
 from ..data.weather_data import AtmosphericData
@@ -6,73 +7,119 @@ class ThermalRadiationAgent(PhysicsAgent):
     def __init__(self):
         super().__init__("thermal_radiation")
         self.stefan_boltzmann = 5.67e-8
-        self.albedo = 0.3  # Bengaluru's average albedo
         
     def calculate(self, data: AtmosphericData) -> Dict[str, float]:
-        temp_k = data.temperature + 273.15
-        cloud_factor = min(data.humidity / 100, 0.9)
-        net_radiation = (1 - self.albedo) * self.stefan_boltzmann * (temp_k**4)
-        net_radiation *= (1 - 0.75 * cloud_factor)  # Cloud effect
+        # Convert temperature to Kelvin
+        T = data.temperature + 273.15
+        
+        # Calculate net radiation (simplified model)
+        net_radiation = self.stefan_boltzmann * (T**4)
+        surface_heating = net_radiation * 0.7  # 70% absorption
+        
         return {
-            "net_radiation": net_radiation,
-            "surface_heating": net_radiation * 0.3,
-            "parameter": "radiation"
+            'net_radiation': net_radiation,
+            'surface_heating': surface_heating,
+            'confidence': 0.85
         }
+
+class AtmosphericStabilityAdvancedAgent(PhysicsAgent):
+    def __init__(self):
+        super().__init__("atmospheric_stability")
+        self.elevation = 920  # Bangalore elevation in meters
+        
+    def calculate(self, data: AtmosphericData) -> Dict[str, float]:
+        # Calculate stability using temperature, pressure and wind
+        temp_gradient = -0.0065  # Standard atmosphere lapse rate
+        stability_index = (
+            temp_gradient * self.elevation / 1000 +
+            data.wind_speed / 10 +
+            (data.pressure - 1013.25) / 1013.25
+        )
+        
+        # Calculate static stability and potential temperature
+        static_stability = -temp_gradient / (data.temperature + 273.15)
+        potential_temp = (data.temperature + 273.15) * (1000/data.pressure)**0.286
+        
+        return {
+            "stability_index": stability_index,
+            "stability_class": self._get_stability_class(stability_index),
+            "static_stability": static_stability,
+            "potential_temperature": potential_temp,
+            "confidence": 0.8
+        }
+        
+    def _get_stability_class(self, index: float) -> str:
+        if index < -0.5:
+            return "unstable"
+        elif index > 0.5:
+            return "stable"
+        return "neutral"
+
 
 class BoundaryLayerAgent(PhysicsAgent):
     def __init__(self):
         super().__init__("boundary_layer")
-        self.von_karman = 0.41
-        self.roughness_length = 0.1  # Urban area
+        self.von_karman = 0.41  # von Karman constant
+        self.surface_roughness = 0.1  # typical urban roughness length in meters
         
     def calculate(self, data: AtmosphericData) -> Dict[str, float]:
-        height = 100  # meters
-        u_star = self.von_karman * data.wind_speed / np.log(height/self.roughness_length)
-        mixing_height = 0.4 * u_star / (7.2921e-5 * np.sin(np.radians(12.9716)))
+        # Calculate mixing height using a simplified model
+        mixing_height = 1000.0  # Base mixing height in meters
+        if data.wind_speed > 0:
+            mixing_height *= (1 + data.wind_speed / 5)  # Adjust for wind speed
+            
+        # Calculate friction velocity using log-law
+        friction_velocity = (data.wind_speed * self.von_karman) / \
+                          np.log(10 / self.surface_roughness)  # 10m is measurement height
+                          
         return {
-            "friction_velocity": u_star,
-            "mixing_height": mixing_height,
-            "parameter": "boundary_layer"
+            'mixing_height': mixing_height,
+            'friction_velocity': friction_velocity,
+            'confidence': 0.75
         }
 
 class OrographicLiftAgent(PhysicsAgent):
     def __init__(self):
         super().__init__("orographic_lift")
-        self.terrain_gradient = 0.05  # Bengaluru's average slope
+        self.terrain_gradient = 0.05  # Average slope for Bangalore
+        self.specific_heat = 1005.0  # Specific heat of air (J/kg·K)
         
     def calculate(self, data: AtmosphericData) -> Dict[str, float]:
+        # Calculate vertical velocity due to terrain
         vertical_velocity = data.wind_speed * self.terrain_gradient
-        temp_change = -0.0098 * vertical_velocity  # Adiabatic lapse rate
+        
+        # Calculate temperature change due to lifting
+        temperature_change = -(vertical_velocity * self.specific_heat) / 9.81
+        
         return {
-            "vertical_velocity": vertical_velocity,
-            "temperature_change": temp_change,
-            "parameter": "vertical_motion"
+            'vertical_velocity': vertical_velocity,
+            'temperature_change': temperature_change,
+            'confidence': 0.7
         }
 
-class AtmosphericStabilityAdvancedAgent(PhysicsAgent):
-    def __init__(self):
-        super().__init__("atmospheric_stability_advanced")
-        
-    def calculate(self, data: AtmosphericData) -> Dict[str, float]:
-        temp_k = data.temperature + 273.15
-        potential_temp = temp_k * (1000/data.pressure)**0.286
-        brunt_vaisala = np.sqrt(9.81/temp_k * 0.0098)  # Static stability
-        return {
-            "potential_temperature": potential_temp,
-            "static_stability": brunt_vaisala,
-            "parameter": "stability"
-        }
 
 class ConvectiveIndexAgent(PhysicsAgent):
     def __init__(self):
         super().__init__("convective_index")
+        self.g = 9.81  # gravitational acceleration
+        self.cp = 1005.0  # specific heat at constant pressure
         
     def calculate(self, data: AtmosphericData) -> Dict[str, float]:
-        temp_k = data.temperature + 273.15
-        e_sat = 6.112 * np.exp(17.67 * data.temperature/(data.temperature + 243.5))
-        theta_e = temp_k + 2.5e6 * (data.humidity/100 * e_sat)/(1005 * temp_k)
+        # Calculate convective potential using temperature and humidity
+        T = data.temperature + 273.15  # Convert to Kelvin
+        
+        # Simple CAPE-like index based on temperature and humidity
+        convective_energy = (
+            (T - 273.15) * 0.1 +  # Temperature contribution
+            (data.humidity / 100) * 0.2 +  # Humidity contribution
+            (1013.25 - data.pressure) / 100  # Pressure contribution
+        )
+        
+        # Normalize to 0-1 scale
+        convective_potential = max(0, min(1, convective_energy / 10))
+        
         return {
-            "equivalent_potential_temp": theta_e,
-            "convective_potential": max(0, (theta_e - temp_k)/temp_k),
-            "parameter": "convection"
+            'convective_potential': convective_potential,
+            'convective_energy': convective_energy,
+            'confidence': 0.75
         }

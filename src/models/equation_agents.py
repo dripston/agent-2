@@ -1,9 +1,8 @@
-import numpy as np
 from typing import Dict
+import numpy as np
 from .base_agent import PhysicsAgent
 from ..data.weather_data import AtmosphericData
 
-# At the top of the file, after imports
 # Physical constants and reference values
 PHYSICS_CONSTANTS = {
     "gas_constant_air": 287.05,      # J/(kg·K)
@@ -243,3 +242,25 @@ class TurbulenceAgent(PhysicsAgent):
             "wind_speed": adjusted_wind,
             "parameter": "wind_speed"
         }
+
+
+class ZoneAwarePhysicsAgent(PhysicsAgent):
+    def __init__(self):
+        super().__init__()
+        
+    def apply_zone_adjustments(self, result: dict, zone: str, zone_data: dict) -> dict:
+        # Apply zone-specific adjustments
+        elevation_factor = (zone_data['elevation'] - 900) / 1000
+        urban_heat = zone_data.get('urban_density', 0.5) * 0.8
+        green_cooling = zone_data.get('green_cover', 0.3) * 0.5
+        
+        result['temperature'] += urban_heat - green_cooling - (elevation_factor * 6.5)
+        result['humidity'] += zone_data.get('humid_bias', 0)
+        return result
+
+class ZoneAwareDewPointAgent(ZoneAwarePhysicsAgent):
+    def calculate(self, data: AtmosphericData, zone: str = None) -> dict:
+        base_result = super().calculate(data)
+        if zone and zone in BANGALORE_ZONES:
+            return self.apply_zone_adjustments(base_result, zone, BANGALORE_ZONES[zone])
+        return base_result

@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: weather-prediction
+Version: 0.1
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: torch
+Requires-Dist: requests
+Dynamic: requires-dist

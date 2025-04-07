@@ -5,8 +5,9 @@ from src.models.equation_agents import (
 )
 from src.models.regional_agents import BengaluruTerrainAgent, MonsoonDynamicsAgent, CoriolisEffectAgent
 from src.models.advanced_physics_agents import (
-    ThermalRadiationAgent, BoundaryLayerAgent, OrographicLiftAgent,
-    AtmosphericStabilityAdvancedAgent, ConvectiveIndexAgent
+    ThermalRadiationAgent, BoundaryLayerAgent,
+    AtmosphericStabilityAdvancedAgent, OrographicLiftAgent,
+    ConvectiveIndexAgent  # Added ConvectiveIndexAgent here
 )
 from datetime import datetime, timedelta
 

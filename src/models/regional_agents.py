@@ -1,12 +1,13 @@
+from typing import Dict, Optional
+import numpy as np
 from .base_agent import PhysicsAgent
 from ..data.weather_data import AtmosphericData
-import numpy as np
 
 class BengaluruTerrainAgent(PhysicsAgent):
     def __init__(self):
-        super().__init__("bengaluru_terrain")
-        self.elevation = 920  # meters
-        self.urban_heat_factor = 2.1  # Bengaluru's urban heat island effect
+        super().__init__("BengaluruTerrain")
+        self.elevation = 920  # Bangalore elevation in meters
+        self.urban_heat_factor = 1.5  # Urban heat island effect factor
         
     def calculate(self, data: AtmosphericData) -> Dict[str, float]:
         # Terrain-based temperature adjustment
@@ -15,7 +16,8 @@ class BengaluruTerrainAgent(PhysicsAgent):
         adjusted_temp = data.temperature + elevation_effect + urban_effect
         return {
             "temperature": adjusted_temp,
-            "parameter": "temperature"
+            "parameter": "temperature",
+            "confidence": 0.85
         }
 
 class MonsoonDynamicsAgent(PhysicsAgent):

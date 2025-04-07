@@ -11,7 +11,18 @@ class AtmosphericData:
     pressure: float
     wind_speed: float
     wind_direction: float
+    precipitation: float = 0.0  # Added with default value of 0.0
     confidence: float = 1.0
+
+    def to_dict(self) -> dict:
+        return {
+            "temperature": self.temperature,
+            "humidity": self.humidity,
+            "pressure": self.pressure,
+            "wind_speed": self.wind_speed,
+            "wind_direction": self.wind_direction,
+            "precipitation": self.precipitation
+        }
 
 @dataclass
 class WeatherPrediction:
